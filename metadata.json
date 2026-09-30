@@ -1,0 +1,6 @@
+{
+  "name": "SpringAI-GIS: Spring Recharge Zone & Decision Support",
+  "description": "AI-Powered Spring Recharge Zone Identification, Hydrogeological Springshed Delineation & Decision Support System",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
