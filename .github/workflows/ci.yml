@@ -1,0 +1,46 @@
+name: SpringAI-GIS CI & Validation
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build-and-test:
+    name: Build & Code Quality Check
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js 20
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20
+        cache: 'npm'
+
+    - name: Install Node Dependencies
+      run: npm ci
+
+    - name: TypeScript Typecheck (App & Server)
+      run: npm run lint
+
+    - name: Build Production Frontend
+      run: npm run build
+
+    - name: Setup Python 3.12
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+
+    - name: Verify Backend Modules Syntax
+      run: |
+        python -m py_compile backend/apps/recharge/delineation.py
+        python -m py_compile backend/apps/suitability/engine.py
+        python -m py_compile backend/apps/interventions/engine.py
+        python -m py_compile backend/apps/realtime.py
+
+    - name: Dockerfile Build Test
+      run: docker build -t springai-gis-web:ci -f Dockerfile .
