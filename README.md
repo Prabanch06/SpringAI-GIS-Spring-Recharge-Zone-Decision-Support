@@ -105,6 +105,8 @@ Services started:
 - `redis`: Redis 7 on `:6379`
 - `celery_worker`: Background spatial raster tasks
 
+For automated GitHub Actions builds and deployment to Amazon Linux EC2 on port 3001, see [EC2_DEPLOYMENT.md](EC2_DEPLOYMENT.md).
+
 ---
 
 ## 6. Project Documentation Index
