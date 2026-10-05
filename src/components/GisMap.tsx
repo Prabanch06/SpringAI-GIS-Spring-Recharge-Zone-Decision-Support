@@ -20,7 +20,7 @@ export const GisMap: React.FC<GisMapProps> = ({
   const mapInstanceRef = useRef<L.Map | null>(null);
 
   // Layer groups refs
-  const baseLayersRef = useRef<{ [key: string]: L.TileLayer }>({});
+  const baseLayersRef = useRef<{ [key: string]: L.Layer }>({});
   const springsLayerRef = useRef<L.LayerGroup | null>(null);
   const polygonLayerRef = useRef<L.LayerGroup | null>(null);
   const lineamentsLayerRef = useRef<L.LayerGroup | null>(null);
@@ -48,15 +48,36 @@ export const GisMap: React.FC<GisMapProps> = ({
     if (!mapContainerRef.current || mapInstanceRef.current) return;
 
     // Basemaps
-    const darkTile = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
-      subdomains: 'abcd',
-      maxZoom: 19
-    });
+    const runtimeKey = typeof window !== 'undefined' ? (window as any).__SPRINGAI_CONFIG__?.cartoApiKey : undefined;
+    const cartoKey = runtimeKey || (import.meta as any).env?.VITE_CARTO_API_KEY;
 
-    const topoTile = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
-      attribution: 'Map data: &copy; OpenStreetMap contributors, SRTM | Map style: &copy; OpenTopoMap (CC-BY-SA)',
-      maxZoom: 17
+    // If an API key is provided, use CARTO Dark Matter with ?key=...
+    // If no key is provided, use ESRI World Dark Gray Canvas so maps never show watermark errors!
+    const darkTile = (cartoKey && cartoKey.trim().length > 0)
+      ? L.tileLayer(
+          cartoKey.startsWith('http')
+            ? cartoKey
+            : `https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=${cartoKey.trim()}`,
+          {
+            attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+            subdomains: 'abcd',
+            maxZoom: 19
+          }
+        )
+      : L.layerGroup([
+          L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+            attribution: 'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ',
+            maxZoom: 16
+          }),
+          L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}', {
+            attribution: '',
+            maxZoom: 16
+          })
+        ]);
+
+    const topoTile = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}', {
+      attribution: 'Tiles &copy; Esri &mdash; Source: Esri, USGS, NOAA, FAO',
+      maxZoom: 18
     });
 
     const satelliteTile = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
@@ -119,7 +140,7 @@ export const GisMap: React.FC<GisMapProps> = ({
     const activeTile = baseLayersRef.current[activeBasemap];
     if (activeTile) {
       activeTile.addTo(map);
-      activeTile.bringToBack();
+      (activeTile as any).bringToBack?.();
     }
   }, [activeBasemap]);
 

@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { SpringEntity, UserProfile, UserRole, InterventionRecommendation } from './types';
 import { api } from './services/api';
+import { socketService } from './services/socket';
+import { RealtimeProvider } from './context/RealtimeContext';
+import { RealtimeToastStack } from './components/RealtimeToastStack';
 import { Header } from './components/Header';
 import { GisMap } from './components/GisMap';
 import { SpringsList } from './components/SpringsList';
@@ -15,6 +18,7 @@ import { TerrainProcessor } from './components/TerrainProcessor';
 import { ReportGenerator } from './components/ReportGenerator';
 import { SpringRegistrationModal } from './components/SpringRegistrationModal';
 import { AuditLogModal } from './components/AuditLogModal';
+import { GeoCopilotModal } from './components/GeoCopilotModal';
 import { Map, ListFilter, Cpu, Wrench, Camera, Sparkles, AlertCircle } from 'lucide-react';
 
 export function App() {
@@ -36,6 +40,7 @@ export function App() {
   const [reportSpringId, setReportSpringId] = useState<string | null>(null);
   const [showRegisterModal, setShowRegisterModal] = useState<boolean>(false);
   const [showAuditModal, setShowAuditModal] = useState<boolean>(false);
+  const [showCopilot, setShowCopilot] = useState<boolean>(false);
 
   // Fetch initial data
   const loadSprings = async () => {
@@ -73,6 +78,36 @@ export function App() {
     }
   }, [selectedSpring?.id]);
 
+  // Real-time Spring updates (live spring registrations and discharge telemetry)
+  useEffect(() => {
+    const unsubCreated = socketService.onSpringCreated((newSpring) => {
+      setSprings(prev => [newSpring, ...prev.filter(s => s.id !== newSpring.id)]);
+    });
+
+    const unsubDischarge = socketService.onDischargeLogged(({ springId, record, updatedSpring }) => {
+      setSprings(prev => prev.map(s => {
+        if (s.id === springId) {
+          return updatedSpring || {
+            ...s,
+            historicalDischarge: [...s.historicalDischarge, record]
+          };
+        }
+        return s;
+      }));
+      if (selectedSpring?.id === springId) {
+        setSelectedSpring(prev => prev ? (updatedSpring || {
+          ...prev,
+          historicalDischarge: [...prev.historicalDischarge, record]
+        }) : null);
+      }
+    });
+
+    return () => {
+      unsubCreated();
+      unsubDischarge();
+    };
+  }, [selectedSpring?.id]);
+
   const handleSwitchRole = async (newRole: UserRole) => {
     try {
       const res = await api.switchRole(newRole);
@@ -107,16 +142,18 @@ export function App() {
   }
 
   return (
-    <div className="flex flex-col h-screen w-screen bg-slate-950 text-slate-100 overflow-hidden font-sans">
-      {/* Top Bar Contract (3 zones) */}
-      <Header
-        user={user}
-        currentTab={currentTab}
-        onSelectTab={setCurrentTab}
-        onSwitchRole={handleSwitchRole}
-        onOpenRegister={() => setShowRegisterModal(true)}
-        onOpenAudit={() => setShowAuditModal(true)}
-      />
+    <RealtimeProvider user={user} currentTab={currentTab} activeSpringId={selectedSpring?.id}>
+      <div className="flex flex-col h-screen w-screen bg-slate-950 text-slate-100 overflow-hidden font-sans">
+        {/* Top Bar Contract (3 zones) */}
+        <Header
+          user={user}
+          currentTab={currentTab}
+          onSelectTab={setCurrentTab}
+          onSwitchRole={handleSwitchRole}
+          onOpenRegister={() => setShowRegisterModal(true)}
+          onOpenAudit={() => setShowAuditModal(true)}
+          onOpenCopilot={() => setShowCopilot(true)}
+        />
 
       {/* Main Viewport Workspace */}
       <main className="flex-1 relative overflow-hidden flex">
@@ -248,7 +285,20 @@ export function App() {
         isOpen={showAuditModal}
         onClose={() => setShowAuditModal(false)}
       />
+
+      {/* AI Geo-Copilot Modal */}
+      <GeoCopilotModal
+        isOpen={showCopilot}
+        onClose={() => setShowCopilot(false)}
+        springs={springs}
+        onSelectSpring={setSelectedSpring}
+        onSelectTab={setCurrentTab}
+      />
+
+      {/* Floating Real-Time Notifications Overlay */}
+      <RealtimeToastStack />
     </div>
+  </RealtimeProvider>
   );
 }
 

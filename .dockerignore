@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.git/
+.gitignore
+.env*
+!.env.docker
+*.log
+coverage/
+.DS_Store
+tests/
+#backend/
+*.md
+.vscode/
+.gemini/
+.agents/

@@ -5,7 +5,12 @@ COPY package*.json ./
 RUN npm ci
 
 COPY . .
+
+# Build the frontend (Vite)
 RUN npm run build
+
+# Compile server.ts to JavaScript for production
+RUN npx tsc server.ts --esModuleInterop --module nodenext --moduleResolution nodenext --target es2022 --skipLibCheck --outDir server-dist --ignoreConfig
 
 FROM node:20-alpine AS runner
 WORKDIR /app
@@ -15,11 +20,12 @@ ENV PORT=3000
 COPY package*.json ./
 RUN npm ci --omit=dev
 
+# Copy the built frontend
 COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/server.ts ./server.ts
-COPY --from=builder /app/tsconfig.json ./tsconfig.json
-COPY --from=builder /app/node_modules ./node_modules
+
+# Copy the compiled server JS
+COPY --from=builder /app/server-dist/server.js ./server.js
 
 EXPOSE 3000
 
-CMD ["npx", "tsx", "server.ts"]
+CMD ["node", "server.js"]

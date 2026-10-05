@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { BackgroundJob, TerrainProcessingResult, UserProfile } from '../types';
 import { api } from '../services/api';
+import { socketService } from '../services/socket';
 import { Mountain, Play, RefreshCw, CheckCircle2, Clock, Activity, ShieldCheck } from 'lucide-react';
 
 interface TerrainProcessorProps {
@@ -27,6 +28,25 @@ export const TerrainProcessor: React.FC<TerrainProcessorProps> = ({ user }) => {
     fetchJobs();
     // Run initial DEM calculation
     handleProcessDem();
+
+    // Real-time job listeners (eliminates polling)
+    const unsubNew = socketService.onJobNew((newJob) => {
+      setJobs(prev => [newJob, ...prev.filter(j => j.id !== newJob.id)]);
+    });
+
+    const unsubProgress = socketService.onJobProgress((data) => {
+      setJobs(prev => prev.map(j => j.id === data.jobId ? { ...j, status: data.status as any, progressPct: data.progressPct } : j));
+    });
+
+    const unsubCompleted = socketService.onJobCompleted((data) => {
+      setJobs(prev => prev.map(j => j.id === data.jobId ? { ...j, status: 'Completed', progressPct: 100, result: data.result } : j));
+    });
+
+    return () => {
+      unsubNew();
+      unsubProgress();
+      unsubCompleted();
+    };
   }, []);
 
   const handleProcessDem = async () => {
@@ -51,19 +71,9 @@ export const TerrainProcessor: React.FC<TerrainProcessorProps> = ({ user }) => {
     setIsQueueing(true);
     try {
       const res = await api.submitJob(taskType, { demId: 'DS-DEM-001', elevationBase });
-      if (res.success) {
-        fetchJobs();
-        // Polling status
-        const interval = setInterval(async () => {
-          const updated = await api.getJobs();
-          if (updated.success) {
-            setJobs(updated.data);
-            const thisJob = updated.data.find(j => j.id === res.data.id);
-            if (thisJob && (thisJob.status === 'Completed' || thisJob.status === 'Failed')) {
-              clearInterval(interval);
-            }
-          }
-        }, 1000);
+      if (res.success && res.data) {
+        // Optimistically insert and let real-time socket events stream progress
+        setJobs(prev => [res.data, ...prev.filter(j => j.id !== res.data.id)]);
       }
     } catch (err) {
       console.error('Failed to submit job:', err);

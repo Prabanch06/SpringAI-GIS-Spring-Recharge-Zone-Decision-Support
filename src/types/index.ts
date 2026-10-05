@@ -39,10 +39,14 @@ export interface FieldObservation {
   gpsAccuracyM: number;
   geologyNotes: string;
   waterCondition: string;
+  sanitaryRisk?: 'Low' | 'Medium' | 'High' | string;
+  flowVisible?: boolean;
+  strikeDipMeasured?: string;
   interventionStatus: string;
   validationStatus: 'Approved' | 'Pending Review' | 'Rejected' | 'Needs Review';
   comments: string;
   photosCount: number;
+  syncStatus?: 'synced' | 'pending' | 'syncing' | 'failed';
 }
 
 export interface ShapFactor {
@@ -230,4 +234,18 @@ export interface TerrainProcessingResult {
   flowAccumulationPeak: number;
   deterministicHash: string;
   spatialReference?: string;
+}
+
+export interface ActiveUserSession {
+  socketId: string;
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    role: UserRole;
+    department: string;
+  };
+  currentTab: string;
+  activeSpringId?: string;
+  lastActive: string;
 }

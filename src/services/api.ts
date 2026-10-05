@@ -2,40 +2,57 @@ import { SpringEntity, UserProfile, UserRole, PriorityWeights, FieldObservation,
 
 const BASE_URL = '/api/v1';
 
+/**
+ * Wrapper around fetch that throws on non-2xx responses.
+ * Ensures the frontend never silently swallows 401/403/500 errors.
+ */
+async function fetchJson<T = any>(url: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(url, init);
+  if (!res.ok) {
+    let errorBody: any;
+    try {
+      errorBody = await res.json();
+    } catch {
+      errorBody = { error: { message: res.statusText } };
+    }
+    const message = errorBody?.error?.message || `HTTP ${res.status}: ${res.statusText}`;
+    const err = new Error(message) as Error & { status: number; body: any };
+    err.status = res.status;
+    err.body = errorBody;
+    throw err;
+  }
+  return res.json();
+}
+
 export const api = {
   // Health probes
   async getHealth(): Promise<any> {
-    const res = await fetch('/health');
-    return res.json();
+    return fetchJson('/health');
   },
 
   async getReady(): Promise<any> {
-    const res = await fetch('/ready');
-    return res.json();
+    return fetchJson('/ready');
   },
 
   // Auth
   async login(username: string, password: string): Promise<any> {
-    const res = await fetch(`${BASE_URL}/auth/login`, {
+    return fetchJson(`${BASE_URL}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, password })
     });
-    return res.json();
   },
 
   async getMe(): Promise<{ success: boolean; user: UserProfile }> {
-    const res = await fetch(`${BASE_URL}/auth/me`);
-    return res.json();
+    return fetchJson(`${BASE_URL}/auth/me`);
   },
 
   async switchRole(role: UserRole): Promise<{ success: boolean; user: UserProfile }> {
-    const res = await fetch(`${BASE_URL}/auth/switch-role`, {
+    return fetchJson(`${BASE_URL}/auth/switch-role`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ role })
     });
-    return res.json();
   },
 
   // Springs
@@ -45,72 +62,63 @@ export const api = {
     if (params?.status) query.append('status', params.status);
     if (params?.springType) query.append('springType', params.springType);
 
-    const res = await fetch(`${BASE_URL}/springs?${query.toString()}`);
-    return res.json();
+    return fetchJson(`${BASE_URL}/springs?${query.toString()}`);
   },
 
   async getSpringById(id: string): Promise<{ success: boolean; data: SpringEntity }> {
-    const res = await fetch(`${BASE_URL}/springs/${id}`);
-    return res.json();
+    return fetchJson(`${BASE_URL}/springs/${id}`);
   },
 
   async createSpring(payload: Partial<SpringEntity>): Promise<{ success: boolean; data: SpringEntity }> {
-    const res = await fetch(`${BASE_URL}/springs`, {
+    return fetchJson(`${BASE_URL}/springs`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
-    return res.json();
   },
 
   async logDischarge(springId: string, payload: { date: string; discharge: number; season: string; method?: string }): Promise<any> {
-    const res = await fetch(`${BASE_URL}/springs/${springId}/discharge`, {
+    return fetchJson(`${BASE_URL}/springs/${springId}/discharge`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
-    return res.json();
   },
 
   // Delineation
   async runDelineation(springId: string, method: string): Promise<any> {
-    const res = await fetch(`${BASE_URL}/recharge-zones/delineate`, {
+    return fetchJson(`${BASE_URL}/recharge-zones/delineate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ springId, method })
     });
-    return res.json();
   },
 
   // Suitability & Missing Data
   async getSuitability(springId: string, simulateIncompleteData: boolean = false): Promise<any> {
-    const res = await fetch(`${BASE_URL}/suitability/predict`, {
+    return fetchJson(`${BASE_URL}/suitability/predict`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ springId, simulateIncompleteData })
     });
-    return res.json();
   },
 
   // Interventions & Priority
   async getInterventions(springId: string): Promise<{ success: boolean; data: InterventionRecommendation[] }> {
-    const res = await fetch(`${BASE_URL}/interventions/recommendations/${springId}`);
-    return res.json();
+    return fetchJson(`${BASE_URL}/interventions/recommendations/${springId}`);
   },
 
   async recalculatePriority(weights: PriorityWeights): Promise<any> {
-    const res = await fetch(`${BASE_URL}/interventions/recalculate-priority`, {
+    return fetchJson(`${BASE_URL}/interventions/recalculate-priority`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ weights })
     });
-    return res.json();
   },
 
   // Field Validations
   async getFieldValidations(): Promise<{ success: boolean; data: FieldObservation[] }> {
-    const res = await fetch(`${BASE_URL}/field-validations`);
-    return res.json();
+    return fetchJson(`${BASE_URL}/field-validations`);
   },
 
   async submitFieldValidation(payload: {
@@ -121,28 +129,28 @@ export const api = {
     waterCondition: string;
     interventionStatus: string;
     comments: string;
+    sanitaryRisk?: 'Low' | 'Medium' | 'High' | string;
+    flowVisible?: boolean;
+    strikeDipMeasured?: string;
   }): Promise<any> {
-    const res = await fetch(`${BASE_URL}/field-validations`, {
+    return fetchJson(`${BASE_URL}/field-validations`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
-    return res.json();
   },
 
   async reviewFieldValidation(obsId: string, status: 'Approved' | 'Rejected' | 'Needs Review', reviewComments?: string): Promise<any> {
-    const res = await fetch(`${BASE_URL}/field-validations/${obsId}/review`, {
+    return fetchJson(`${BASE_URL}/field-validations/${obsId}/review`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status, reviewComments })
     });
-    return res.json();
   },
 
   // Datasets Ingestion & Validation (MVP-AC-008, MVP-AC-009)
   async getDatasets(): Promise<{ success: boolean; count: number; data: GeospatialDataset[] }> {
-    const res = await fetch(`${BASE_URL}/datasets`);
-    return res.json();
+    return fetchJson(`${BASE_URL}/datasets`);
   },
 
   async uploadDataset(payload: {
@@ -154,57 +162,98 @@ export const api = {
     source?: string;
     resolutionM?: number;
   }): Promise<any> {
-    const res = await fetch(`${BASE_URL}/datasets/upload`, {
+    return fetchJson(`${BASE_URL}/datasets/upload`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
-    return res.json();
   },
 
   // DEM Terrain Processing (MVP-AC-012, MVP-AC-014)
   async processDem(demId: string, elevationBase?: number): Promise<{ success: boolean; data: TerrainProcessingResult }> {
-    const res = await fetch(`${BASE_URL}/terrain/process-dem`, {
+    return fetchJson(`${BASE_URL}/terrain/process-dem`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ demId, elevationBase })
     });
-    return res.json();
   },
 
   // Background Asynchronous Jobs (MVP-AC-047, MVP-AC-048)
   async getJobs(): Promise<{ success: boolean; count: number; data: BackgroundJob[] }> {
-    const res = await fetch(`${BASE_URL}/jobs`);
-    return res.json();
+    return fetchJson(`${BASE_URL}/jobs`);
   },
 
   async getJobById(jobId: string): Promise<{ success: boolean; data: BackgroundJob }> {
-    const res = await fetch(`${BASE_URL}/jobs/${jobId}`);
-    return res.json();
+    return fetchJson(`${BASE_URL}/jobs/${jobId}`);
   },
 
   async submitJob(taskType: string, params?: any): Promise<any> {
-    const res = await fetch(`${BASE_URL}/jobs/submit`, {
+    return fetchJson(`${BASE_URL}/jobs/submit`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ taskType, params })
     });
-    return res.json();
   },
 
   // Model Registry & Audit
   async getModels(): Promise<{ success: boolean; data: ModelMetadata[] }> {
-    const res = await fetch(`${BASE_URL}/models`);
-    return res.json();
+    return fetchJson(`${BASE_URL}/models`);
   },
 
   async getAuditLogs(): Promise<{ success: boolean; data: AuditLogItem[] }> {
-    const res = await fetch(`${BASE_URL}/audit-logs`);
-    return res.json();
+    return fetchJson(`${BASE_URL}/audit-logs`);
   },
 
   async getReportData(springId: string): Promise<{ success: boolean; data: any }> {
-    const res = await fetch(`${BASE_URL}/reports/${springId}`);
-    return res.json();
+    return fetchJson(`${BASE_URL}/reports/${springId}`);
+  },
+
+  // GenAI Geo-Copilot & Multimodal Vision (MVP-AC-GENAI)
+  async queryGeoCopilot(query: string, context?: any): Promise<{
+    success: boolean;
+    data: {
+      answer: string;
+      matchedSpringIds: string[];
+      filterCriteria?: any;
+      suggestedInterventions?: string[];
+      suggestedFollowUp?: string[];
+      engine: 'gemini-2.0-flash' | 'gemini-1.5-flash' | 'gemini-1.5-pro' | 'spatial-hydrogeological-engine' | string;
+    };
+  }> {
+    return fetchJson(`${BASE_URL}/ai/geo-copilot`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query, context })
+    });
+  },
+
+  async analyzeOutcropPhoto(imageBase64: string, mimeType: string = 'image/jpeg', springContext?: any): Promise<{
+    success: boolean;
+    data: {
+      lithology: string;
+      water_clarity: string;
+      sanitary_risk: 'Low' | 'Medium' | 'High' | string;
+      flow_visible: boolean;
+      estimated_flow?: number | null;
+      confidence: number;
+      ai_assistance_notes?: string;
+      recommended_intervention?: string;
+      scientific_disclaimer?: string;
+      // Backward compatibility aliases
+      waterClarity?: string;
+      strikeDipEstimate?: string;
+      fractureCondition?: string;
+      recommendedIntervention?: string;
+      suggestedNotes?: string;
+      estimatedDischargeLpm?: number;
+      engine?: string;
+    };
+  }> {
+    return fetchJson(`${BASE_URL}/ai/analyze-outcrop`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ imageBase64, mimeType, springContext })
+    });
   }
 };
+
