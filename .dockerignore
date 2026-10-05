@@ -1,9 +1,11 @@
 node_modules/
+backend/env/
+.npm-cache/
+server-dist/
 dist/
 .git/
 .gitignore
 .env*
-!.env.docker
 *.log
 coverage/
 .DS_Store

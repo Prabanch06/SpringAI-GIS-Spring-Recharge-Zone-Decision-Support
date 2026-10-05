@@ -1,28 +1,77 @@
-name: NodeJS with Webpack
+name: Build and deploy
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [main]
   pull_request:
-    branches: [ "main" ]
+    branches: [main]
 
 jobs:
-  build:
+  validate:
     runs-on: ubuntu-latest
-
-    strategy:
-      matrix:
-        node-version: [18.x, 20.x, 22.x]
-
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
 
-    - name: Use Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@v4
-      with:
-        node-version: ${{ matrix.node-version }}
+  publish:
+    needs: validate
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE_NAME: ghcr.io/prabanch06/springai-gis-spring-recharge-zone-decision-support
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          push: true
+          tags: |
+            ${{ env.IMAGE_NAME }}:latest
+            ${{ env.IMAGE_NAME }}:${{ github.sha }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.backend
+          push: true
+          tags: |
+            ${{ env.IMAGE_NAME }}-backend:latest
+            ${{ env.IMAGE_NAME }}-backend:${{ github.sha }}
 
-    - name: Build
-      run: |
-        npm install
-        npx webpack
+  deploy:
+    needs: publish
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.EC2_HOST != ''
+    runs-on: ubuntu-latest
+    env:
+      EC2_HOST: ${{ vars.EC2_HOST }}
+      EC2_USER: ${{ vars.EC2_USER }}
+      IMAGE_NAME: ghcr.io/prabanch06/springai-gis-spring-recharge-zone-decision-support
+      IMAGE_TAG: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.EC2_SSH_KEY }}
+      - name: Trust EC2 SSH host
+        run: ssh-keyscan -H "$EC2_HOST" >> "$HOME/.ssh/known_hosts"
+      - name: Copy Compose file to EC2
+        run: scp docker-compose.prod.yml "$EC2_USER@$EC2_HOST:/opt/springai-gis/docker-compose.prod.yml"
+      - name: Deploy published images
+        run: |
+          ssh "$EC2_USER@$EC2_HOST" \
+            "cd /opt/springai-gis && GHCR_IMAGE='$IMAGE_NAME' IMAGE_TAG='$IMAGE_TAG' docker compose -f docker-compose.prod.yml pull && GHCR_IMAGE='$IMAGE_NAME' IMAGE_TAG='$IMAGE_TAG' docker compose -f docker-compose.prod.yml up -d --remove-orphans"
