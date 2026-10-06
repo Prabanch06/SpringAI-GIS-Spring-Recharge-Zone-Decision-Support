@@ -1,0 +1,43 @@
+name: Deploy Backend to EC2
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    name: Deploy to EC2
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy on EC2
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            set -e
+
+            cd /home/ec2-user/SpringAI-GIS-Spring-Recharge-Zone-Decision-Support
+
+            echo "Pulling latest code..."
+            git pull origin main
+
+            echo "Building API image..."
+            docker buildx build \
+              --load \
+              -t springai-api:latest \
+              -f Dockerfile.api .
+
+            echo "Restarting backend..."
+            docker compose -f docker-compose.backend.yml up -d
+
+            echo "Waiting for API..."
+            sleep 10
+
+            echo "Health check..."
+            curl -f http://localhost:3000/health
+
+            echo "Deployment successful!"

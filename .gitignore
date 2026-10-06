@@ -1,4 +1,43 @@
+# Dependencies
 node_modules/
+
+# Python virtual environment
+.venv/
+
+# Build output
+build/
+dist/
+coverage/
+
+# OS files
+.DS_Store
+
+# Logs
+*.log
+
+# Environment files
+.env*
+!.env.example
+
+# Local EC2 files
+docker-compose.fullstack.backup.yml
+
+# SSH keys
+SpringAI-ssh
+SpringAI-ssh.pub
+ssh
+ssh.pub
+# EC2 SSH keys
+SpringAI-ssh
+SpringAI-ssh.pub
+ssh
+ssh.pub
+
+# Python virtual environment
+.venv/
+
+# Local Docker/EC2 files
+docker-compose.fullstack.backup.ymlnode_modules/
 build/
 dist/
 coverage/
@@ -6,3 +45,9 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Local EC2 files
+.venv/
+docker-compose.fullstack.backup.yml
+
+.venv
